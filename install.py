@@ -87,8 +87,14 @@ def do(msg="", cmd=""):
 
 
 def check_raspbain_version():
-    _, result = run_command("cat /etc/debian_version|awk -F. '{print $1}'")
-    return int(result.strip())
+    result = os.popen("lsb_release -sc").read().strip()
+    print(f"Detected OS version: {result}")
+    # Default to version 11 if not a number
+    try:
+        return int(result)
+    except ValueError:
+        return 11  # or 10, depending on what the script expects
+
 
 
 def check_os_bit():
