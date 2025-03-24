@@ -89,11 +89,19 @@ def do(msg="", cmd=""):
 def check_raspbain_version():
     result = os.popen("lsb_release -sc").read().strip()
     print(f"Detected OS version: {result}")
-    # Default to version 11 if not a number
+    # Handle known non-Raspbian cases
+    known_versions = {
+        "noble": 12,
+        "jammy": 11,
+        "focal": 10
+    }
+    if result in known_versions:
+        return known_versions[result]
     try:
         return int(result)
     except ValueError:
-        return 11  # or 10, depending on what the script expects
+        return 12  # Assume latest known good base
+
 
 
 
