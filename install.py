@@ -117,6 +117,10 @@ def check_raspbain_version():
 
 # Dependencies list installed with apt
 # =================================================================
+# Get system info before defining APT_INSTALL_LIST
+raspbain_version = check_raspbain_version()
+os_bit = check_os_bit()
+
 APT_INSTALL_LIST = [
     'raspi-config',
     "i2c-tools",
@@ -126,7 +130,7 @@ APT_INSTALL_LIST = [
     'portaudio19-dev',  # pyaudio
     'sox',
 ]
-if raspbain_version in [12] and os_bit == 64:
+if raspbain_version >= 12 and os_bit == 64:  # Changed to >= for future compatibility
     APT_INSTALL_LIST.append("libttspico-utils")  # tts -> pico2wave
 
 # Dependencies list installed with pip3
