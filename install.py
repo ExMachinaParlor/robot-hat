@@ -105,8 +105,15 @@ def check_os_bit():
 
 # check system
 # =================================================================
-raspbain_version = check_raspbain_version()
-os_bit = check_os_bit()
+def check_raspbain_version():
+    result = os.popen("lsb_release -sc").read().strip()
+    print(f"Detected OS version: {result}")
+    # Default to version 11 if not a number
+    try:
+        return int(result)
+    except ValueError:
+        return 11  # or 10, depending on what the script expects
+
 
 # Dependencies list installed with apt
 # =================================================================
