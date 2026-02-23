@@ -158,20 +158,41 @@ PIP_INSTALL_LIST = [
 
 # main
 # =================================================================
+def get_pip_cmd():
+    """Return a working pip invocation, or None if pip is unavailable."""
+    for cmd in ("python3 -m pip", "pip3", "pip"):
+        status, _ = run_command(f"{cmd} --version")
+        if status == 0:
+            return cmd
+    return None
+
+
 def install():
-    # check whether pip has the option "--break-system-packages"
+    # --- Ensure pip is available before anything else ---
+    _pip = get_pip_cmd()
+    if _pip is None:
+        print(" - pip not found, installing python3-pip via apt ... ", end='', flush=True)
+        status, _ = run_command("apt-get install -y python3-pip")
+        if status == 0:
+            print("Done")
+        else:
+            print("Error — cannot continue without pip")
+            sys.exit(1)
+        _pip = get_pip_cmd()
+
+    # --- Check whether pip supports --break-system-packages (PEP 668) ---
     _is_bsps = ''
-    status, _ = run_command("pip3 help install|grep break-system-packages")
+    status, _ = run_command(f"{_pip} help install | grep break-system-packages")
     if status == 0:
         _is_bsps = "--break-system-packages"
-        print("\033[38;5;8m pip3 install with --break-system-packages\033[0m")
+        print("\033[38;5;8m pip install with --break-system-packages\033[0m")
 
     # --- install robot_hat package ---
     _if_build_isolation = ""
     if "--no-build-isolation" in options:
         _if_build_isolation = "--no-build-isolation"
     do(msg=f"install robot_hat package {_if_build_isolation}",
-       cmd=f'pip3 install ./ {_is_bsps} {_if_build_isolation}')
+       cmd=f'{_pip} install ./ {_is_bsps} {_if_build_isolation}')
 
     # --- only-library ---
     if "--only-lib" not in options:
@@ -210,11 +231,11 @@ def install():
             # --------------------------------
             print("Install dependencies with pip3:")
             # update pip
-            do(msg="update pip3", cmd='sudo apt-get upgrade -y python3-pip')
+            do(msg="update pip3", cmd='apt-get install -y python3-pip')
             #
             for dep in PIP_INSTALL_LIST:
                 do(msg=f"install {dep}",
-                   cmd=f'pip3 install {dep} {_is_bsps}')
+                   cmd=f'{_pip} install {dep} {_is_bsps}')
 
         # --- Setup interfaces ---
         print("Setup interfaces")
