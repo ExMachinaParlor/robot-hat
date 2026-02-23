@@ -89,19 +89,21 @@ def do(msg="", cmd=""):
 def check_raspbain_version():
     _, result = run_command("cat /etc/debian_version|awk -F. '{print $1}'")
     return int(result.strip())
+    result = os.popen("lsb_release -sc").read().strip()
+    print(f"Detected OS version: {result}")
+    # Handle known non-Raspbian cases
+    known_versions = {
+        "noble": 12,
+        "jammy": 11,
+        "focal": 10
+    }
+    if result in known_versions:
+        return known_versions[result]
+    try:
+        return int(result)
+    except ValueError:
+        return 12  # Assume latest known good base
 
-
-def check_os_bit():
-    '''
-    # import platform
-    # machine_type = platform.machine() 
-    latest bullseye uses a 64-bit kernel
-    This method is no longer applicable, the latest raspbian will uses 64-bit kernel 
-    (kernel 6.1.x) by default, "uname -m" shows "aarch64", 
-    but the system is still 32-bit.
-    '''
-    _, os_bit = run_command("getconf LONG_BIT")
-    return int(os_bit)
 
 # check system
 # =================================================================
