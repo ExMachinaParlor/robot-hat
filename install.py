@@ -86,12 +86,16 @@ def do(msg="", cmd=""):
                       (msg, status, result))
 
 
-def check_raspbain_version():
-    _, result = run_command("cat /etc/debian_version|awk -F. '{print $1}'")
-    return int(result.strip())
+def check_raspbian_version():
+    # First, try parsing /etc/debian_version directly
+    exit_code, result = run_command("cat /etc/debian_version | awk -F. '{print $1}'")
+    if exit_code == 0 and result.strip().isdigit():
+        return int(result.strip())
+
+    # Fallback: use lsb_release for non-standard environments (e.g., Ubuntu)
     result = os.popen("lsb_release -sc").read().strip()
     print(f"Detected OS version: {result}")
-    # Handle known non-Raspbian cases
+
     known_versions = {
         "noble": 12,
         "jammy": 11,
@@ -99,6 +103,7 @@ def check_raspbain_version():
     }
     if result in known_versions:
         return known_versions[result]
+
     try:
         return int(result)
     except ValueError:
