@@ -12,7 +12,7 @@ from version import __version__
 
 print("Robot Hat Python Library v%s" % __version__)
 
-avaiable_options = ["--no-dep", "--only-lib", "--no-build-isolation"]
+available_options = ["--no-dep", "--only-lib", "--no-build-isolation"]
 options = []
 if len(sys.argv) > 1:
     options = list.copy(sys.argv[1:])
@@ -26,11 +26,13 @@ def warn(msg, end='\n', file=sys.stdout, flush=False):
 def error(msg, end='\n', file=sys.stdout, flush=False):
     print(f'\033[0;31m{msg}\033[0m', end=end, file=file, flush=flush)
 
+
 # check if run as root
 # =================================================================
 if os.geteuid() != 0:
     warn("Script must be run as root. Try \"sudo python3 install.py\".")
     sys.exit(1)
+
 
 # utils
 # =================================================================
@@ -44,8 +46,10 @@ def run_command(cmd=""):
     status = p.poll()
     return status, result
 
+
 errors = []
 at_work_tip_sw = False
+
 
 def working_tip():
     char = ['/', '-', '\\', '|']
@@ -73,7 +77,6 @@ def do(msg="", cmd=""):
     _thread.start()
     # process run
     status, result = run_command(cmd)
-    # print(status, result)
     # at_work_tip stop
     at_work_tip_sw = False
     _thread.join()  # wait for thread to finish
@@ -86,6 +89,8 @@ def do(msg="", cmd=""):
                       (msg, status, result))
 
 
+# check system
+# =================================================================
 def check_raspbian_version():
     # First, try parsing /etc/debian_version directly
     exit_code, result = run_command("cat /etc/debian_version | awk -F. '{print $1}'")
@@ -96,10 +101,11 @@ def check_raspbian_version():
     result = os.popen("lsb_release -sc").read().strip()
     print(f"Detected OS version: {result}")
 
+    # Ubuntu codename -> approximate Debian base version
     known_versions = {
-        "noble": 12,
-        "jammy": 11,
-        "focal": 10
+        "noble": 13,   # Ubuntu 24.04 ~ Debian 13
+        "jammy": 12,   # Ubuntu 22.04 ~ Debian 12
+        "focal": 11,   # Ubuntu 20.04 ~ Debian 11
     }
     if result in known_versions:
         return known_versions[result]
@@ -110,23 +116,20 @@ def check_raspbian_version():
         return 12  # Assume latest known good base
 
 
-# check system
-# =================================================================
-def check_raspbain_version():
-    result = os.popen("lsb_release -sc").read().strip()
-    print(f"Detected OS version: {result}")
-    # Default to version 11 if not a number
+def check_os_bit():
+    _, result = run_command("getconf LONG_BIT")
     try:
-        return int(result)
+        return int(result.strip())
     except ValueError:
-        return 11  # or 10, depending on what the script expects
+        return 32  # Safe fallback
 
 
 # Dependencies list installed with apt
 # =================================================================
-# Get system info before defining APT_INSTALL_LIST
-raspbain_version = check_raspbain_version()
+raspbian_version = check_raspbian_version()
 os_bit = check_os_bit()
+
+print(f"Detected Debian version: {raspbian_version}, OS bit: {os_bit}")
 
 APT_INSTALL_LIST = [
     'raspi-config',
@@ -137,7 +140,7 @@ APT_INSTALL_LIST = [
     'portaudio19-dev',  # pyaudio
     'sox',
 ]
-if raspbain_version >= 12 and os_bit == 64:  # Changed to >= for future compatibility
+if raspbian_version >= 12 and os_bit == 64:
     APT_INSTALL_LIST.append("libttspico-utils")  # tts -> pico2wave
 
 # Dependencies list installed with pip3
@@ -159,8 +162,9 @@ def install():
     # check whether pip has the option "--break-system-packages"
     _is_bsps = ''
     status, _ = run_command("pip3 help install|grep break-system-packages")
-    if status == 0: # if true
+    if status == 0:
         _is_bsps = "--break-system-packages"
+        print("\033[38;5;8m pip3 install with --break-system-packages\033[0m")
 
     # --- install robot_hat package ---
     _if_build_isolation = ""
@@ -180,35 +184,37 @@ def install():
             #
             for dep in APT_INSTALL_LIST:
                 do(msg=f"install {dep}", cmd=f'apt-get install {dep} -y')
-            #
+
+            # Manual libttspico install for non-64bit or pre-12 systems
             if 'libttspico-utils' not in APT_INSTALL_LIST:
                 _pool = 'http://ftp.debian.org/debian/pool/non-free/s/svox/'
-                if raspbain_version >= 12:
-                    libttspico= 'libttspico0t64_1.0+git20130326-14.1_armhf.deb'
-                    libttspico_utils = 'libttspico-utils_1.0+git20130326-14.1_armhf.deb'
-                elif raspbain_version < 12:
-                    libttspico = 'libttspico0_1.0+git20130326-11_armhf.deb'
-                    libttspico_utils = 'libttspico-utils_1.0+git20130326-11_armhf.deb'
+
+                # Select correct package filenames based on version and architecture
+                if os_bit == 64:
+                    _arch = "arm64"
+                else:
+                    _arch = "armhf"
+
+                if raspbian_version >= 12:
+                    libttspico = f'libttspico0t64_1.0+git20130326-14.1_{_arch}.deb'
+                    libttspico_utils = f'libttspico-utils_1.0+git20130326-14.1_{_arch}.deb'
+                else:
+                    libttspico = f'libttspico0_1.0+git20130326-11_{_arch}.deb'
+                    libttspico_utils = f'libttspico-utils_1.0+git20130326-11_{_arch}.deb'
+
                 do(msg="install pico2wave",
-                    cmd=f'wget {_pool}{libttspico}' +
-                    f' &&wget {_pool}{libttspico_utils}' +
-                    f' && apt-get install -f ./{libttspico} ./{libttspico_utils} -y'
-                    )
+                   cmd=f'wget {_pool}{libttspico}'
+                       f' && wget {_pool}{libttspico_utils}'
+                       f' && apt-get install -f ./{libttspico} ./{libttspico_utils} -y')
+
             # --------------------------------
             print("Install dependencies with pip3:")
-            # check whether pip has the option "--break-system-packages"
-            if _is_bsps != '':
-                _is_bsps = "--break-system-packages"
-                print(
-                    "\033[38;5;8m pip3 install with --break-system-packages\033[0m"
-                )
             # update pip
-            do(msg="update pip3",
-                cmd=f'sudo apt-get upgrade -y python3-pip')
+            do(msg="update pip3", cmd='sudo apt-get upgrade -y python3-pip')
             #
             for dep in PIP_INSTALL_LIST:
                 do(msg=f"install {dep}",
-                    cmd=f'pip3 install {dep} {_is_bsps}')
+                   cmd=f'pip3 install {dep} {_is_bsps}')
 
         # --- Setup interfaces ---
         print("Setup interfaces")
@@ -219,7 +225,7 @@ def install():
         print("Copy dtoverlay")
         DEFAULT_OVERLAYS_PATH = "/boot/firmware/overlays/"
         LEGACY_OVERLAYS_PATH = "/boot/overlays/"
-        _overlays_path = None
+
         if os.path.exists(DEFAULT_OVERLAYS_PATH):
             _overlays_path = DEFAULT_OVERLAYS_PATH
         elif os.path.exists(LEGACY_OVERLAYS_PATH):
@@ -229,15 +235,15 @@ def install():
 
         if _overlays_path is not None:
             do(msg="copy dtoverlay",
-            cmd=f'cp ./dtoverlays/* {_overlays_path}')
+               cmd=f'cp ./dtoverlays/* {_overlays_path}')
 
     # --- Report error ---
     if len(errors) == 0:
         print("Finished")
     else:
         print("\n\nError happened in install process:")
-        for error in errors:
-            print(error)
+        for err in errors:
+            print(err)
         print(
             "Try to fix it yourself, or contact service@sunfounder.com with this message"
         )
@@ -249,13 +255,13 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         if len(errors) > 0:
             print("\n\nError happened in install process:")
-            for error in errors:
-                print(error)
+            for err in errors:
+                print(err)
             print(
                 "Try to fix it yourself, or contact service@sunfounder.com with this message"
             )
         print("\n\nCanceled.")
     finally:
         sys.stdout.write(' \033[1D')
-        sys.stdout.write('\033[?25h') # cursor visible 
+        sys.stdout.write('\033[?25h')  # cursor visible
         sys.stdout.flush()
